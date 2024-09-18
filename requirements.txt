@@ -1,0 +1,7 @@
+numpy
+math
+scipy
+skimage
+matplotlib
+astropy
+logging
