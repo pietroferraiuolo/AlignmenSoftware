@@ -12,8 +12,8 @@ How to Use it
 """
 import logging
 import numpy as np
-import SystemConfiguration as sysconf # to change
-from _ground import zernike as zern, file_manager as io
+import optal.SystemConfiguration as sysconf
+from ._ground import zernike as zern, file_manager as io
 
 class Alignment():
     """
