@@ -1,7 +1,11 @@
+import os
 import numpy as np
 from astropy.io import fits
+import datetime as dt
+from optal import SystemConfiguration
+save_path = SystemConfiguration.base_write_data_path
 
-def _read_fits_data(fits_file_path):
+def read_fits_data(fits_file_path):
     """
     Reads data from a FITS file.
 
@@ -21,7 +25,7 @@ def _read_fits_data(fits_file_path):
             obj = np.ma.masked_array(obj, mask=obj.mask)
     return obj
 
-def _save_fits_data(filename, data, header=None, overwrite:bool=False):
+def save_fits_data(fits_name, data, header=None, overwrite:bool=False):
     """
     Saves data to a FITS file.
 
@@ -38,8 +42,20 @@ def _save_fits_data(filename, data, header=None, overwrite:bool=False):
     overwrite : bool, optional
         Whether to overwrite the file if it already exists. The default is False.
     """
+    filename = os.path.join(save_path, new_tn(), fits_name)
     if hasattr(data, 'mask'):
         fits.writeto(filename, data.data, header, overwrite=overwrite)
         fits.append(filename, data.mask.astype(np.uint8), header, overwrite=overwrite)
     else:
         fits.writeto(filename, data, header, overwrite=overwrite)
+
+def new_tn():
+    """
+    Generates a new tracking number in the format YYYYMMDD_hhmmss.
+
+    Returns
+    -------
+    str
+        The new time-stamped filename.
+    """
+    return dt.datetime.now().strftime("%Y%m%d_%H%M%S")

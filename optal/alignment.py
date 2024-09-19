@@ -46,7 +46,7 @@ class Alignment():
         self._zvec2fit  = np.arange(1,11)
         self._zvec2use  = [1,2,3,6,7] # passato da configurazione?
         self._template  = [+1,-2,+1]
-        self._auxMask   = None # io._read_fits_data(sysconf.calibrated_parabola)
+        self._auxMask   = None # io.read_fits_data(sysconf.calibrated_parabola)
         self._cmdAmp    = None
         logging.basicConfig(filename=(self._writePath+'/alignment.log'),
                                       level=logging.DEBUG,
@@ -62,7 +62,7 @@ class Alignment():
         """
         image = self._acquire[0](n_frames)
         zernike_coeff = self._zern_routine(image)
-        intMat = io._read_fits_data(self._readPath+'/intMat.fits')
+        intMat = io.read_fits_data(self._readPath+'/intMat.fits')
         reduced_intMat = intMat[:,zern2correct]
         reduced_cmdMat = self.cmdMat[ modes2correct,:]
         recMat = self._create_rec_mat(reduced_intMat)
@@ -98,7 +98,7 @@ class Alignment():
         imglist = self._images_production(template, n_repetitions)
         intMat = self._zern_routine(imglist)
         self.intMat = intMat
-        io._save_fits_data(self._writePath+'/intMat.fits', self.intMat)
+        io.save_fits_data(self._writePath+'/intMat.fits', self.intMat)
         return "Ready for Alignment..."
     
     def read_positions(self):
