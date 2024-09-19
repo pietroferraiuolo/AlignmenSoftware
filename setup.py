@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 NAME        = 'AlignmentSoftware'
 VERSION     = '0.9.1'
-DESCRIPTION =  'A brief description of your package'
+DESCRIPTION = 'Mechanical alignment for optical systems.'
 AUTHOR      = 'Pietro Ferraiuolo'
 AUTHOR_EMAIL= 'pietro.ferraiuolo@inaf.it'
 URL         = 'https://github.com/pietroferraiuolo/AlignmentSoftware'
@@ -18,9 +18,7 @@ setup(
     packages=find_packages(),
     install_requires=required,
     entry_points={
-        'console_scripts': [
-            # Add command line scripts here
-        ],
+        'console_scripts': [],
     },
     author=AUTHOR,
     author_email=AUTHOR_EMAIL,

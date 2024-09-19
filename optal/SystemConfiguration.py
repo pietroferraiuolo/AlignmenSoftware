@@ -14,7 +14,6 @@ How to Use it
 -------------
 Check the 'opt_alignment.py' library to see how it's used
 """
-import numpy as np
 #_____________________________________________________________________________#
 """
 Mechanical motors - available degrees of freedom
@@ -24,9 +23,15 @@ Mechanical motors - available degrees of freedom
 'slices' is a list in which each element is the slice relative to the corresponding
       device in the full cmd vector
 """
-dof    = [np.array([2, 3, 4]), np.array([3, 4]), np.array([3, 4])]
-cmdDof = 6
-slices = [slice(0,3), slice(3,5), slice(5,7)]
+cmdDof = 6                # Total DoF
+dof = []                  # Available Degrees of Freedom (DoF)
+dof.append([2, 3, 4])     # Parabola DoF
+dof.append([3, 4])        # Reference Mirror DoF
+dof.append([3, 4])        # M4 Exapode DoF
+slices = []               # Full cmd vector devices indexes
+slices.append(slice(0,3)) # Parabola
+slices.append(slice(3,5)) # Reference Mirror
+slices.append(slice(5,7)) # M4 Exapode
 #_____________________________________________________________________________#
 """Functions to actuate the motors
 This variable should be a list of ordered functions, i.e the first function 
@@ -36,7 +41,7 @@ devices_move_calls = [
     'parabola.setPosition',
     'referenceMirror.setPosition',
     'm4Exapode.setPosition'
-         ]
+    ]
 devices_read_calls = [
     'parabola.getPosition',
     'referenceMirror.getPosition',

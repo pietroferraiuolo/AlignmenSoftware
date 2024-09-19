@@ -32,13 +32,13 @@ class Alignment():
         """
         self.ott        = mechanical_devices
         self.ccd        = acquisition_devices
-        self.cmdMat     = io._read_fits_data('/home/pietrof/git/M4/scripts/ottalign/cmdMat.fits') #temporary
+        self.cmdMat     = io.read_fits_data('/home/pietrof/git/M4/scripts/ottalign/cmdMat.fits') #temporary
         self.intMat     = None
         self._moveFnc   = self._get_callables(self.ott, sysconf.devices_move_calls)
         self._readFnc   = self._get_callables(self.ott, sysconf.devices_read_calls)
         self._acquire   = self._get_callables(self.ccd, sysconf.ccd_acquisition)
         self._devName   = sysconf.names
-        self._dof       = sysconf.dof
+        self._dof       = [np.array(dof) if not isinstance(dof, np.ndarray) else dof for dof in sysconf.dof]
         self._dofTot    = sysconf.cmdDof
         self._idx       = sysconf.slices
         self._readPath  = sysconf.base_read_data_path
@@ -75,7 +75,7 @@ class Alignment():
         print(full_cmd, full_cmd.shape)
         return reduced_cmd, full_cmd
 
-    def calibrate_alignment(self, cmdAmp, template:list=None, n_repetitions:int=1):
+    def calibrate_alignment(self, cmdAmp, template:list=None, n_repetitions:int=1, save:bool=False):
         """
         Calibrates the alignment using the provided command amplitude and template.
 
@@ -98,7 +98,8 @@ class Alignment():
         imglist = self._images_production(template, n_repetitions)
         intMat = self._zern_routine(imglist)
         self.intMat = intMat
-        io.save_fits_data(self._writePath+'/intMat.fits', self.intMat)
+        if save:
+            io.save_fits_data('intMat.fits', self.intMat, overwrite=True)
         return "Ready for Alignment..."
     
     def read_positions(self):
@@ -122,7 +123,7 @@ class Alignment():
         print(logMsg) #!!! debug only
         return pos
 
-    def reload_parabola_tn(self, filepath):
+    def reload_calibrated_parabola(self, filepath):
         """
         Reloads the parabola from the given file path.
 
@@ -136,7 +137,7 @@ class Alignment():
         str
             A message indicating the successful loading of the file.
         """
-        par = io._read_fits_data(filepath)
+        par = io.read_fits_data(filepath)
         self.auxMask = par.mask #!!! to check
         return f"Correctly loaded '{filepath}'"
 
@@ -300,7 +301,7 @@ class Alignment():
             logMsg += f" - Full Command : {cmd}"
             logging.info(logMsg)
             print(logMsg) #!!! debug only
-            self.apply_command(cmd)
+            self._apply_command(cmd)
             imglist.append(self._acquire[0](15))
         return imglist
 
@@ -335,14 +336,14 @@ class Alignment():
         return image
 
     @staticmethod
-    def _get_callables(device, callables):
+    def _get_callables(devices, callables):
         """
         Returns a list of callables for the instanced object, taken from the 
         configuration.py file.
 
         Parameters
         ----------
-        device : object
+        devices : object
             The device object for which callables are retrieved.
         callables : list
             The list of callable names to be retrieved.
@@ -352,13 +353,16 @@ class Alignment():
         functions : list
             List of callables, which interacts with the input object of the class.
         """
+        if not isinstance(devices, list):
+            devices = [devices]
         functions = []
-        for dev_call in callables:
-            obj, *methods = dev_call.split('.')
-            call = getattr(device, obj)
-            for method in methods:
-                call = getattr(call, method)
-            functions.append(call)
+        for dev in devices:
+            for dev_call in callables:
+                obj, *methods = dev_call.split('.')
+                call = getattr(dev, obj)
+                for method in methods:
+                    call = getattr(call, method)
+                functions.append(call)
         return functions
 
 class _Command:
@@ -487,6 +491,10 @@ class _Command:
         bool
             The decision for the to_ignore flag based on the command logic.
         """
+        # P = current device position
+        # C = received device command
+        # S = sum of P and C - command to apply (absolute)
+        #_________________________________________________#
         # If S = 0
         if np.all(S == 0):
             # C ≠ 0 and P ≠ 0 → TO_NOT_IGNORE

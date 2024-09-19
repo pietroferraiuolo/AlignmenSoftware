@@ -43,6 +43,11 @@ def save_fits_data(fits_name, data, header=None, overwrite:bool=False):
         Whether to overwrite the file if it already exists. The default is False.
     """
     filename = os.path.join(save_path, new_tn(), fits_name)
+    if not os.path.exists(os.path.dirname(filename)):
+        os.makedirs(os.path.dirname(filename))
+    if os.path.exists(filename) and not overwrite:
+        raise FileExistsError(f"The file {filename} already
+        exists. Set overwrite=True to overwrite it.")
     if hasattr(data, 'mask'):
         fits.writeto(filename, data.data, header, overwrite=overwrite)
         fits.append(filename, data.mask.astype(np.uint8), header, overwrite=overwrite)

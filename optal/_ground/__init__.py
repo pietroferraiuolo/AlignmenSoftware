@@ -1,2 +1,2 @@
-import zernike as zern
-import geo
+from . import zernike as zern
+from . import geo

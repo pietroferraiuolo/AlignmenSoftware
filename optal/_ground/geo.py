@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Autors
-  - R. Briguglio: created on Mon Mar 16 11:00:08 2020
-  - F Miceli: add functionality on march 2022
+Autor(s)
+---------
+    - Federico Miceli : added funcitonality on march 2022
+    - Runa Briguglio : created Mar 2020
+    - Pietro Ferraiuolo : polished on 2024
 
+Description
+-----------
+This module contains functions for geometric operations on images.
 """
 import numpy as np
 from matplotlib import pyplot as plt
