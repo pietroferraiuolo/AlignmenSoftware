@@ -13,12 +13,6 @@ Copyright (c) 2011 Tim van Werkhoven. All rights reserved.
 This file is licensed under the Creative Commons Attribution-Share Alike
 license versions 3.0 or higher, see
 http://creativecommons.org/licenses/by-sa/3.0/
-
-HOW TO USE IT::
-
-    from m4.ground import zernike
-    coeff, mat = zernike.zernikeFit(img, zernike_index_vector)
-    surf_image = zernike.zernikeSurface(img, coef, mat)
 """
 import numpy as np
 from . import geo
@@ -89,9 +83,9 @@ def zernikeFit(img, zernike_index_vector, qpupil=True):
     img1 = img.data
     mask = np.invert(img.mask).astype(int)
     if qpupil==True:
-        x, y, r, xx, yy = geo.qpupil(mask)
+        xx, yy = geo.qpupil(mask)
     else:
-        x, y, r, xx, yy = geo.qpupil_circle(img)
+        xx, yy = geo.qpupil_circle(img)
     mm = (mask==1)
     coeff = _surf_fit(xx[mm], yy[mm], img1[mm], zernike_index_vector)
     mat = _getZernike(xx[mm], yy[mm], zernike_index_vector)
@@ -116,13 +110,11 @@ def zernikeFitAuxmask(img, auxmask, zernike_index_vector):
     '''
     img1 = img.data
     mask = np.invert(img.mask).astype(int)
-    x, y, r, xx, yy = geo.qpupil(auxmask)
+    xx, yy = geo.qpupil(auxmask)
     mm = (mask==1)
     coeff = _surf_fit(xx[mm], yy[mm], img1[mm], zernike_index_vector)
     mat = _getZernike(xx[mm], yy[mm], zernike_index_vector)
     return coeff, mat
-
-
 
 def zernikeSurface(img, coef, mat):
     '''
@@ -150,7 +142,6 @@ def _surf_fit(xx, yy, zz, zlist, ordering='noll'):
     B = np.transpose(zz.copy())
     coeff = (np.linalg.lstsq(A, B, rcond=-1))[0]
     return coeff
-
 
 ### Init functions
 def _getZernike(xx,yy,zlist,ordering='noll'):
@@ -187,15 +178,11 @@ def _zernike_rad(m, n, rho):
     >>> zernike_rad(3, 5, 0.12345)
     -0.007382104685237683
     """
-
     if (n < 0 or m < 0 or abs(m) > n):
         raise ValueError
-
     if ((n-m) % 2):
         return rho*0.0
-
     pre_fac = lambda k: (-1.0)**k * fac(n-k) / ( fac(k) * fac( int((n+m)/2.0 - k) ) * fac( int((n-m)/2.0 - k) ) )
-
     return sum(pre_fac(k) * rho**(n-2.0*k) for k in range((n-m)//2+1))
 
 def _zernike(m, n, rho, phi):
@@ -214,7 +201,7 @@ def _zernike(m, n, rho, phi):
 
 def _zernikel(j, rho, phi):
     """
-    Calculate Zernike polynomial with Noll coordinate j given a grid of radial
+    Calculate Zernike polynomial with Null coordinate j given a grid of radial
     coordinates rho and azimuthal coordinates phi.
 
     >>> zernikel(0, 0.12345, 0.231)
@@ -237,9 +224,7 @@ def _l2mn_ansi(j):
     while (j > n):
         n += 1
         j -= n
-
     m = -n+2*j
-
     return m, n
 
 def _l2mn_noll(j):
@@ -257,12 +242,10 @@ def _l2mn_noll(j):
     p = (j-(n*(n+1))/2.)
     k = n%2
     m = int((p+k)/2.)*2 - k
-
     if m!=0:
         if j%2==0:
             s=1
         else:
             s=-1
         m *= s
-
     return [m, n]

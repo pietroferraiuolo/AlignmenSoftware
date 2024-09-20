@@ -3,9 +3,10 @@ import numpy as np
 from astropy.io import fits
 import datetime as dt
 from optal import SystemConfiguration
-save_path = SystemConfiguration.base_write_data_path
 
-def read_fits_data(fits_file_path):
+_save_path = SystemConfiguration.base_write_data_path
+
+def read_fits_data(fits_file_path, masked_data:bool=False):
     """
     Reads data from a FITS file.
 
@@ -21,8 +22,11 @@ def read_fits_data(fits_file_path):
     """
     with fits.open(fits_file_path) as hduList:
         obj = hduList[0].data
-        if hasattr(obj, 'mask'):
-            obj = np.ma.masked_array(obj, mask=obj.mask)
+        if len(hduList)==2:
+            mask = hduList[1].data.astype(bool)
+            obj = np.ma.masked_array(obj, mask=mask)
+        elif len(hduList)>2:
+            print(f"{NotImplemented}: The FITS file {fits_file_path.split('/')[-1]} contains more than 2 HDUs. Skipping")
     return obj
 
 def save_fits_data(fits_name, data, header=None, overwrite:bool=False):
@@ -42,12 +46,11 @@ def save_fits_data(fits_name, data, header=None, overwrite:bool=False):
     overwrite : bool, optional
         Whether to overwrite the file if it already exists. The default is False.
     """
-    filename = os.path.join(save_path, new_tn(), fits_name)
+    filename = os.path.join(_save_path, new_tn(), fits_name)
     if not os.path.exists(os.path.dirname(filename)):
         os.makedirs(os.path.dirname(filename))
     if os.path.exists(filename) and not overwrite:
-        raise FileExistsError(f"The file {filename} already
-        exists. Set overwrite=True to overwrite it.")
+        raise FileExistsError(f"The file {filename} already exists. Set overwrite=True to overwrite it.")
     if hasattr(data, 'mask'):
         fits.writeto(filename, data.data, header, overwrite=overwrite)
         fits.append(filename, data.mask.astype(np.uint8), header, overwrite=overwrite)

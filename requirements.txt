@@ -1,7 +1,5 @@
 numpy
-math
 scipy
-skimage
+scikit-image
 matplotlib
 astropy
-logging

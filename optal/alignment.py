@@ -12,7 +12,7 @@ How to Use it
 """
 import logging
 import numpy as np
-import optal.SystemConfiguration as sysconf
+import optal.SystemConfiguration as sc
 from ._ground import zernike as zern, file_manager as io
 
 class Alignment():
@@ -25,73 +25,111 @@ class Alignment():
 
         Parameters
         ----------
-        mechanical_devices : object
-            The mechanical devices used for alignment.
+        mechanical_devices : object or list
+            The mechanical devices used for alignment. Can be either
+            a single object which calls more devices or a list of 
+            single devices.
         acquisition_devices : object
             The acquisition devices used for alignment.
         """
-        self.ott        = mechanical_devices
+        self.mdev       = mechanical_devices
         self.ccd        = acquisition_devices
-        self.cmdMat     = io.read_fits_data('/home/pietrof/git/M4/scripts/ottalign/cmdMat.fits') #temporary
+        self.cmdMat     = io.read_fits_data(sc.commandMatrix)
         self.intMat     = None
-        self._moveFnc   = self._get_callables(self.ott, sysconf.devices_move_calls)
-        self._readFnc   = self._get_callables(self.ott, sysconf.devices_read_calls)
-        self._acquire   = self._get_callables(self.ccd, sysconf.ccd_acquisition)
-        self._devName   = sysconf.names
-        self._dof       = [np.array(dof) if not isinstance(dof, np.ndarray) else dof for dof in sysconf.dof]
-        self._dofTot    = sysconf.cmdDof
-        self._idx       = sysconf.slices
-        self._readPath  = sysconf.base_read_data_path
-        self._writePath = sysconf.base_write_data_path
-        self._zvec2fit  = np.arange(1,11)
-        self._zvec2use  = [1,2,3,6,7] # passato da configurazione?
-        self._template  = [+1,-2,+1]
-        self._auxMask   = None # io.read_fits_data(sysconf.calibrated_parabola)
         self._cmdAmp    = None
+        self._auxMask   = io.read_fits_data(sc.calibrated_parabola) if not sc.calibrated_parabola=='' else None
+        self._moveFnc   = self.__get_callables(self.mdev, sc.devices_move_calls)
+        self._readFnc   = self.__get_callables(self.mdev, sc.devices_read_calls)
+        self._acquire   = self.__get_callables(self.ccd,  sc.ccd_acquisition)
+        self._devName   = self.__get_dev_names(sc.names, ndev=len(self.mdev))
+        self._dof       = [np.array(dof) if not isinstance(dof, np.ndarray) else dof for dof in sc.dof]
+        self._dofTot    = sc.cmdDof if isinstance(sc.cmdDof, list) else [sc.cmdDof]*len(self.mdev)
+        self._idx       = sc.slices
+        self._zvec2fit  = np.arange(1,11)
+        self._zvec2use  = sc.zernike_to_use
+        self._template  = sc.push_pull_template
+        self._readPath  = sc.base_read_data_path
+        self._writePath = sc.base_write_data_path
         logging.basicConfig(filename=(self._writePath+'/alignment.log'),
                                       level=logging.DEBUG,
                                       format='%(asctime)s - %(levelname)s - %(message)s')
 
-    def correct_alignment(self, modes2correct, zern2correct, n_frames:int=15):
+    def correct_alignment(self, modes2correct, zern2correct, apply:bool=False, n_frames:int=15):
         """
-        Corrects the alignment based on the current settings.
+        Corrects the alignment of the system based on Zernike coefficients.
+
+        Parameters
+        ----------
+        modes2correct : array-like
+            Indices of the modes to correct.
+        zern2correct : array-like
+            Indices of the Zernike coefficients to correct.
+        apply : bool, optional
+            If True, the correction command will be applied to the system. 
+            If False (default), the correction command will be returned.
+        n_frames : int, optional
+            Number of frames acquired and averaged the alignment correction. Default is 15.
 
         Returns
         -------
-        None
+        numpy.ndarray or str
+            If `apply` is False, returns the correction command as a numpy array.
+            If `apply` is True, applies the correction command and returns a string 
+            indicating that the alignment has been corrected along with the current 
+            positions.
+
+        Notes
+        -----
+        This method acquires an image, calculates the Zernike coefficients, reads the 
+        interaction matrix from a FITS file, reduces the interaction matrix and command 
+        matrix based on the specified modes and Zernike coefficients, creates a 
+        reconstruction matrix, calculates the reduced command, and either applies the 
+        correction command or returns it.
         """
         image = self._acquire[0](n_frames)
         zernike_coeff = self._zern_routine(image)
         intMat = io.read_fits_data(self._readPath+'/intMat.fits')
-        reduced_intMat = intMat[:,zern2correct]
-        reduced_cmdMat = self.cmdMat[ modes2correct,:]
+        reduced_intMat = intMat[np.ix_(modes2correct,zern2correct)]
+        reduced_cmdMat = self.cmdMat[:,modes2correct]
         recMat = self._create_rec_mat(reduced_intMat)
-        reduced_cmd = np.dot(recMat.T, zernike_coeff[zern2correct])
+        reduced_cmd = np.dot(recMat, zernike_coeff[zern2correct])
         f_cmd = np.dot(reduced_cmdMat, reduced_cmd)
-        full_cmd = np.zeros(6)
-        for x,mode in enumerate(modes2correct):
-            full_cmd[mode] = f_cmd[x]
-        #self._apply_command(full_cmd)
-        print(full_cmd, full_cmd.shape)
-        return reduced_cmd, full_cmd
+        print(f"Resulting Command: {f_cmd}")
+        if apply:
+            print("Applying correction command...")
+            self._apply_command(f_cmd)
+            return "Alignment Corrected\n"+self.read_positions()
+        else:
+            return f_cmd
 
     def calibrate_alignment(self, cmdAmp, template:list=None, n_repetitions:int=1, save:bool=False):
         """
-        Calibrates the alignment using the provided command amplitude and template.
+        Calibrate the alignment of the system using the provided command amplitude and template.
 
         Parameters
         ----------
-        cmdAmp : float or ndarray
+        cmdAmp : float
             The command amplitude used for calibration.
         template : list, optional
-            The template used for calibration. The default is None.
+            A list representing the template for calibration. If not provided, the default template will be used.
         n_repetitions : int, optional
-            The number of repetitions for the calibration. The default is 1.
+            The number of repetitions for the calibration process. Default is 1.
+        save : bool, optional
+            If True, the resulting internal matrix will be saved to a FITS file. Default is False.
 
         Returns
         -------
-        intMat : ndarray
-            The interaction matrix obtained from the calibration.
+        str
+            A message indicating that the system is ready for alignment.
+
+        Notes
+        -----
+        This method performs the following steps:
+        1. Sets the command amplitude.
+        2. Uses the provided template or the default template if none is provided.
+        3. Produces a list of images based on the template and number of repetitions.
+        4. Executes a Zernike routine on the image list to generate an internal matrix.
+        5. Optionally saves the internal matrix to a FITS file.
         """
         self._cmdAmp = cmdAmp
         template = template if template is not None else self._template
@@ -265,7 +303,7 @@ class Alignment():
         """
         commands = []
         for d,dof in enumerate(self._dof):
-            dev_cmd = np.zeros(self._dofTot)
+            dev_cmd = np.zeros(self._dofTot[d])
             dev_idx = fullCmd[self._idx[d]]
             for i,idx in enumerate(dev_idx):
                 dev_cmd[dof[i]] = idx
@@ -336,7 +374,7 @@ class Alignment():
         return image
 
     @staticmethod
-    def _get_callables(devices, callables):
+    def __get_callables(devices, callables):
         """
         Returns a list of callables for the instanced object, taken from the 
         configuration.py file.
@@ -364,6 +402,30 @@ class Alignment():
                     call = getattr(call, method)
                 functions.append(call)
         return functions
+    
+    @staticmethod
+    def __get_dev_names(names, ndev):
+        """
+        Returns the names of the devices.
+
+        Parameters
+        ----------
+        names : list
+            The list of device names.
+
+        Returns
+        -------
+        names : list
+            The list of device names.
+        """
+        dev_names = []
+        try:
+            for x in names:
+                dev_names.append(x)
+        except TypeError:
+            for x in range(ndev):
+                dev_names.append(f"Device {x}")
+        return dev_names
 
 class _Command:
     """
@@ -393,7 +455,7 @@ class _Command:
             Recycles the class to reuse the instance, updating its vector and 
             reset flag.
     """
-    def __init__(self, vector=None, to_ignore: bool = None):
+    def __init__(self, vector=None, to_ignore:bool=None):
         """
         Initializes a new instance of the _Command class.
     

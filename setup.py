@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 NAME        = 'AlignmentSoftware'
-VERSION     = '0.9.1'
+VERSION     = '0.2.1'
 DESCRIPTION = 'Mechanical alignment for optical systems.'
 AUTHOR      = 'Pietro Ferraiuolo'
 AUTHOR_EMAIL= 'pietro.ferraiuolo@inaf.it'
