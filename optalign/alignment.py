@@ -5,15 +5,14 @@ Author(s):
 Description
 -----------
 This module provides the `Alignment` class and related functions for performing
-alignment procedures, including calibration and correction. 
+alignment procedures, including calibration and correction.
 
 How to Use it
 -------------
 """
-import logging
 import numpy as np
-import optal.SystemConfiguration as sc
-from ._ground import zernike as zern, file_manager as io
+import optalign._systemConfiguration as sc
+from . import _ground as grd
 
 class Alignment():
     """
@@ -27,21 +26,22 @@ class Alignment():
         ----------
         mechanical_devices : object or list
             The mechanical devices used for alignment. Can be either
-            a single object which calls more devices or a list of 
+            a single object which calls more devices or a list of
             single devices.
         acquisition_devices : object
             The acquisition devices used for alignment.
         """
         self.mdev       = mechanical_devices
         self.ccd        = acquisition_devices
-        self.cmdMat     = io.read_fits_data(sc.commandMatrix)
+        self.cmdMat     = grd.read_fits_data(sc.commandMatrix)
         self.intMat     = None
+        self.recMat     = None
         self._cmdAmp    = None
-        self._auxMask   = io.read_fits_data(sc.calibrated_parabola) if not sc.calibrated_parabola=='' else None
-        self._moveFnc   = self.__get_callables(self.mdev, sc.devices_move_calls)
-        self._readFnc   = self.__get_callables(self.mdev, sc.devices_read_calls)
-        self._acquire   = self.__get_callables(self.ccd,  sc.ccd_acquisition)
-        self._devName   = self.__get_dev_names(sc.names, ndev=len(self.mdev))
+        self._auxMask   = grd.read_fits_data(sc.calibrated_parabola).mask if not sc.calibrated_parabola=='' else None
+        self._moveFnc   = grd.get_callables(self.mdev, sc.devices_move_calls)
+        self._readFnc   = grd.get_callables(self.mdev, sc.devices_read_calls)
+        self._acquire   = grd.get_callables(self.ccd,  sc.ccd_acquisition)
+        self._devName   = grd.get_dev_names(sc.names, ndev=len(self.mdev))
         self._dof       = [np.array(dof) if not isinstance(dof, np.ndarray) else dof for dof in sc.dof]
         self._dofTot    = sc.cmdDof if isinstance(sc.cmdDof, list) else [sc.cmdDof]*len(self.mdev)
         self._idx       = sc.slices
@@ -50,9 +50,7 @@ class Alignment():
         self._template  = sc.push_pull_template
         self._readPath  = sc.base_read_data_path
         self._writePath = sc.base_write_data_path
-        logging.basicConfig(filename=(self._writePath+'/alignment.log'),
-                                      level=logging.DEBUG,
-                                      format='%(asctime)s - %(levelname)s - %(message)s')
+        grd.set_up_logger(sc.log_path, sc.logging_level)
 
     def correct_alignment(self, modes2correct, zern2correct, apply:bool=False, n_frames:int=15):
         """
@@ -65,7 +63,7 @@ class Alignment():
         zern2correct : array-like
             Indices of the Zernike coefficients to correct.
         apply : bool, optional
-            If True, the correction command will be applied to the system. 
+            If True, the correction command will be applied to the system.
             If False (default), the correction command will be returned.
         n_frames : int, optional
             Number of frames acquired and averaged the alignment correction. Default is 15.
@@ -74,21 +72,21 @@ class Alignment():
         -------
         numpy.ndarray or str
             If `apply` is False, returns the correction command as a numpy array.
-            If `apply` is True, applies the correction command and returns a string 
-            indicating that the alignment has been corrected along with the current 
+            If `apply` is True, applies the correction command and returns a string
+            indicating that the alignment has been corrected along with the current
             positions.
 
         Notes
         -----
-        This method acquires an image, calculates the Zernike coefficients, reads the 
-        interaction matrix from a FITS file, reduces the interaction matrix and command 
-        matrix based on the specified modes and Zernike coefficients, creates a 
-        reconstruction matrix, calculates the reduced command, and either applies the 
+        This method acquires an image, calculates the Zernike coefficients, reads the
+        interaction matrix from a FITS file, reduces the interaction matrix and command
+        matrix based on the specified modes and Zernike coefficients, creates a
+        reconstruction matrix, calculates the reduced command, and either applies the
         correction command or returns it.
         """
         image = self._acquire[0](n_frames)
         zernike_coeff = self._zern_routine(image)
-        intMat = io.read_fits_data(self._readPath+'/intMat.fits')
+        intMat = grd.read_fits_data(self._readPath+'/intMat.fits')
         reduced_intMat = intMat[np.ix_(modes2correct,zern2correct)]
         reduced_cmdMat = self.cmdMat[:,modes2correct]
         recMat = self._create_rec_mat(reduced_intMat)
@@ -99,8 +97,7 @@ class Alignment():
             print("Applying correction command...")
             self._apply_command(f_cmd)
             return "Alignment Corrected\n"+self.read_positions()
-        else:
-            return f_cmd
+        return f_cmd
 
     def calibrate_alignment(self, cmdAmp, template:list=None, n_repetitions:int=1, save:bool=False):
         """
@@ -137,9 +134,9 @@ class Alignment():
         intMat = self._zern_routine(imglist)
         self.intMat = intMat
         if save:
-            io.save_fits_data('intMat.fits', self.intMat, overwrite=True)
+            grd.save_fits_data('intMat.fits', self.intMat, overwrite=True)
         return "Ready for Alignment..."
-    
+
     def read_positions(self):
         """
         Reads the current positions of the devices.
@@ -157,7 +154,7 @@ class Alignment():
             pos.append(_Command(temp))
             logMsg += f"{dev_name}"+' '*(16-len(dev_name))+f" : {temp}\n"
         logMsg += '-'*30
-        logging.info(logMsg)
+        #logging.info(logMsg)
         print(logMsg) #!!! debug only
         return pos
 
@@ -175,8 +172,8 @@ class Alignment():
         str
             A message indicating the successful loading of the file.
         """
-        par = io.read_fits_data(filepath)
-        self.auxMask = par.mask #!!! to check
+        par = grd.read_fits_data(filepath)
+        self._auxMask = par.mask #!!! to check
         return f"Correctly loaded '{filepath}'"
 
     def _images_production(self, template, n_repetitions):
@@ -200,13 +197,13 @@ class Alignment():
         for i in range(n_repetitions):
             logMsg = ''
             logMsg += f"Repetition n.{i}\n"
-            logging.info(logMsg)
+            #logging.info(logMsg)
             print(logMsg) ## debug only
             for k in range(self.cmdMat.shape[1]):
                 logMsg2= ''
                 logMsg2 += f"Matrix Column {k+1} : {self.cmdMat.T[k]}"
                 print(f"Matrix Column {k+1} : {self.cmdMat.T[k]}\n") ## debug only
-                logging.info(logMsg2)
+                #logging.info(logMsg2)
                 imglist = self._img_acquisition(k, template)
                 image = self._push_pull_redux(imglist, template)
                 results.append(image)
@@ -235,9 +232,9 @@ class Alignment():
             imglist = [imglist]
         for img in imglist:
             if self._auxMask is None:
-                coeff, _ = zern.zernikeFit(img, self._zvec2fit)
+                coeff, _ = grd.zernikeFit(img, self._zvec2fit)
             else:
-                coeff, _ = zern.zernikeFitAuxmask(img, self._auxMask, self._zvec2fit)
+                coeff, _ = grd.zernikeFitAuxmask(img, self._auxMask, self._zvec2fit)
             coefflist.append(coeff[self._zvec2use])
         if len(coefflist) == 1:
             coefflist = np.array(coefflist[0])
@@ -264,7 +261,7 @@ class Alignment():
         Parameters
         ----------
         fullCmd : list or ndarray
-            Full command of the interaction matrix which commands all device's 
+            Full command of the interaction matrix which commands all device's
             available motors.
 
         Returns
@@ -281,9 +278,10 @@ class Alignment():
                     logMsg += f"Commanding {cmd} to {dev}\n"# debug
                     fnc(cmd.vect)
                 except Exception as e:
-                    logging.warning(f"Someting went wrong with {dev}: {e}")
+                    print(e)
+                    #logging.warning(f"Someting went wrong with {dev}: {e}")
         logMsg += '-'*30 # debug
-        logging.info(logMsg)
+        #logging.info(logMsg)
         print(logMsg) #!!! debug only
 
 
@@ -337,7 +335,7 @@ class Alignment():
             logMsg += f"t = {t}"
             cmd = self.cmdMat.T[k] * self._cmdAmp * t
             logMsg += f" - Full Command : {cmd}"
-            logging.info(logMsg)
+            #logging.info(logMsg)
             print(logMsg) #!!! debug only
             self._apply_command(cmd)
             imglist.append(self._acquire[0](15))
@@ -373,64 +371,10 @@ class Alignment():
         template.pop(0)
         return image
 
-    @staticmethod
-    def __get_callables(devices, callables):
-        """
-        Returns a list of callables for the instanced object, taken from the 
-        configuration.py file.
-
-        Parameters
-        ----------
-        devices : object
-            The device object for which callables are retrieved.
-        callables : list
-            The list of callable names to be retrieved.
-
-        Returns
-        -------
-        functions : list
-            List of callables, which interacts with the input object of the class.
-        """
-        if not isinstance(devices, list):
-            devices = [devices]
-        functions = []
-        for dev in devices:
-            for dev_call in callables:
-                obj, *methods = dev_call.split('.')
-                call = getattr(dev, obj)
-                for method in methods:
-                    call = getattr(call, method)
-                functions.append(call)
-        return functions
-    
-    @staticmethod
-    def __get_dev_names(names, ndev):
-        """
-        Returns the names of the devices.
-
-        Parameters
-        ----------
-        names : list
-            The list of device names.
-
-        Returns
-        -------
-        names : list
-            The list of device names.
-        """
-        dev_names = []
-        try:
-            for x in names:
-                dev_names.append(x)
-        except TypeError:
-            for x in range(ndev):
-                dev_names.append(f"Device {x}")
-        return dev_names
-
 class _Command:
     """
-    The _Command class represents a command with a vector and a reset flag. It 
-    provides methods for updating the command, checking if it is null, and 
+    The _Command class represents a command with a vector and a reset flag. It
+    provides methods for updating the command, checking if it is null, and
     combining it with other commands.
     Attributes:
         vect (np.ndarray): The vector representing the command.
@@ -447,18 +391,18 @@ class _Command:
         is_null():
             Determines whether the command is null, i.e., a sequence of zeros.
         to_ignore():
-            Returns True if the command is flagged to be ignored, False if it 
+            Returns True if the command is flagged to be ignored, False if it
             is null but should not be ignored.
         to_ignore(value: bool):
             Setter for the 'to_ignore' property.
         update(vector, is_reset=None):
-            Recycles the class to reuse the instance, updating its vector and 
+            Recycles the class to reuse the instance, updating its vector and
             reset flag.
     """
     def __init__(self, vector=None, to_ignore:bool=None):
         """
         Initializes a new instance of the _Command class.
-    
+
         Parameters
         ----------
         vector : list or np.ndarray, optional
@@ -469,11 +413,11 @@ class _Command:
         """
         self.vect = np.array(vector) if isinstance(vector, list) else vector
         self.to_ignore = to_ignore
-    
+
     def __repr__(self):
         """
         Returns a string representation of the _Command instance.
-    
+
         Returns
         -------
         str
@@ -483,33 +427,33 @@ class _Command:
             return f"Command({self.vect}, to_ignore={self.to_ignore})"
         else:
             return f"Command({self.vect},)"
-    
+
     def __str__(self):
         """
         Returns the string representation of the command vector.
-    
+
         Returns
         -------
         str
             The string representation of the command vector.
         """
         return self.vect.__str__()
-    
+
     def __add__(self, other):
         """
         Combines the current command with another _Command instance.
-    
+
         Parameters
         ----------
         other : _Command
             Another instance of the _Command class.
-    
+
         Returns
         -------
         _Command
-            A new _Command instance with the combined vector and updated 
+            A new _Command instance with the combined vector and updated
             'to_ignore 'flag.
-    
+
         Raises
         ------
         NotImplementedError
@@ -522,23 +466,23 @@ class _Command:
         combined_vect = self.vect + other.vect
         to_ignore = self._process_command_logic(self, other, combined_vect)
         return _Command(combined_vect, to_ignore)
-    
+
     @property
     def is_null(self):
         """
         Determines whether the command is null, i.e., a sequence of zeros.
-    
+
         Returns
         -------
         bool
             True if the command is null, False otherwise.
         """
         return np.all(self.vect == 0)
-    
+
     def _process_command_logic(self, P, C, S):
         """
         Processes the command logic to determine the to_ignore flag.
-    
+
         Parameters
         ----------
         P : _Command
@@ -547,7 +491,7 @@ class _Command:
             The current command instance.
         S : np.ndarray
             The sum of the vectors of the previous and current commands.
-    
+
         Returns
         -------
         bool
