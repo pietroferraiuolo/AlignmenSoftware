@@ -3,249 +3,306 @@
 """
 @file zernike.py
 @brief Zernike generation library
-@author M.Xompero
-@url -
 @date 20200202
 
 Created by Tim van Werkhoven (t.i.m.vanwerkhoven@xs4all.nl) on 2011-10-12
-Copyright (c) 2011 Tim van Werkhoven. All rights reserved.
-
-This file is licensed under the Creative Commons Attribution-Share Alike
-license versions 3.0 or higher, see
-http://creativecommons.org/licenses/by-sa/3.0/
+Licensed under the Creative Commons Attribution-Share Alike license versions 3.0 or higher.
 """
 import numpy as np
 from . import geo
 import math
+
 fac = math.factorial
 
 def removeZernike(ima, modes=np.array([1, 2, 3, 4])):
     """
-    
+    Remove Zernike modes from an image.
 
     Parameters
     ----------
-    ima : TYPE
-        DESCRIPTION.
-    modes : TYPE, optional
-        DESCRIPTION. The default is np.array([1, 2, 3, 4]).
+    ima : numpy masked array
+        Image from which Zernike modes are to be removed.
+    modes : numpy array, optional
+        Zernike modes to be removed. Default is np.array([1, 2, 3, 4]).
 
     Returns
     -------
-    new_ima : TYPE
-        DESCRIPTION.
-
+    new_ima : numpy masked array
+        Image with Zernike modes removed.
     """
     coeff, mat = zernikeFit(ima, modes)
     surf = zernikeSurface(ima, coeff, mat)
-    new_ima = ima - surf
-    return new_ima
+    return ima - surf
 
 def removeZernikeAuxMask(img, mm, zlist):
     """
-    
+    Remove Zernike modes from an image using an auxiliary mask.
 
     Parameters
     ----------
-    img : TYPE
-        DESCRIPTION.
-    mm : TYPE
-        DESCRIPTION.
-    zlist : TYPE
-        DESCRIPTION.
+    img : numpy masked array
+        Image from which Zernike modes are to be removed.
+    mm : numpy array
+        Auxiliary mask.
+    zlist : numpy array
+        List of Zernike modes to be removed.
 
     Returns
     -------
-    new_ima : TYPE
-        DESCRIPTION.
-
+    new_ima : numpy masked array
+        Image with Zernike modes removed.
     """
     coef, mat = zernikeFitAuxmask(img, mm, zlist)
     surf = zernikeSurface(img, coef, mat)
-    new_ima = np.ma.masked_array(img - surf, img.mask)
-    return new_ima
+    return np.ma.masked_array(img - surf, img.mask)
 
-def zernikeFit(img, zernike_index_vector, qpupil=True):
-    '''
+def zernikeFit(img, zernike_index_vector, qpupil:bool=True):
+    """
+    Fit Zernike modes to an image.
+
     Parameters
     ----------
-    img: numpy masked array
-        image for zernike fit
-    zernike_index_vector: numpy array
-        vector containing the index of Zernike modes to be fitted starting from 1
+    img : numpy masked array
+        Image for Zernike fit.
+    zernike_index_vector : numpy array
+        Vector containing the index of Zernike modes to be fitted starting from 1.
 
     Returns
     -------
-    coeff: numpy array [m]
-        vector of zernike coefficients
-    mat: numpy array
-    '''
+    coeff : numpy array
+        Vector of Zernike coefficients.
+    mat : numpy array
+        Matrix of Zernike polynomials.
+    """
     img1 = img.data
     mask = np.invert(img.mask).astype(int)
-    if qpupil==True:
-        xx, yy = geo.qpupil(mask)
-    else:
-        xx, yy = geo.qpupil_circle(img)
-    mm = (mask==1)
+    xx, yy = geo.qpupil(mask) if qpupil else geo.qpupil_circle(img)
+    mm = (mask == 1)
     coeff = _surf_fit(xx[mm], yy[mm], img1[mm], zernike_index_vector)
     mat = _getZernike(xx[mm], yy[mm], zernike_index_vector)
     return coeff, mat
 
 def zernikeFitAuxmask(img, auxmask, zernike_index_vector):
-    '''
+    """
+    Fit Zernike modes to an image using an auxiliary mask.
+
     Parameters
     ----------
-    img: numpy masked array
-        image for zernike fit
-    auxmask: numpy array
-        zero for masked point
-    zernike_index_vector: numpy array
-        vector containing the index of Zernike modes to be fitted starting from 1
+    img : numpy masked array
+        Image for Zernike fit.
+    auxmask : numpy array
+        Auxiliary mask.
+    zernike_index_vector : numpy array
+        Vector containing the index of Zernike modes to be fitted starting from 1.
 
     Returns
     -------
-    coeff: numpy array [m]
-        vector of zernike coefficients
-    mat: numpy array
-    '''
+    coeff : numpy array
+        Vector of Zernike coefficients.
+    mat : numpy array
+        Matrix of Zernike polynomials.
+    """
     img1 = img.data
     mask = np.invert(img.mask).astype(int)
     xx, yy = geo.qpupil(auxmask)
-    mm = (mask==1)
+    mm = (mask == 1)
     coeff = _surf_fit(xx[mm], yy[mm], img1[mm], zernike_index_vector)
     mat = _getZernike(xx[mm], yy[mm], zernike_index_vector)
     return coeff, mat
 
 def zernikeSurface(img, coef, mat):
-    '''
+    """
+    Generate Zernike surface from coefficients and matrix.
+
     Parameters
     ----------
-    img: numpy masked array
-        image for zernike fit
-    coeff: numpy array [m]
-        vector of zernike coefficients
-    mat: numpy array
+    img : numpy masked array
+        Image for Zernike fit.
+    coef : numpy array
+        Vector of Zernike coefficients.
+    mat : numpy array
+        Matrix of Zernike polynomials.
 
     Returns
     -------
-    surf: numpy masked array
-        zernike surface generate by coeff
-    '''
+    surf : numpy masked array
+        Zernike surface generated by coefficients.
+    """
     mm = np.where(img.mask == 0)
-    zernike_surface = np.zeros((img.shape[0], img.shape[1]))
+    zernike_surface = np.zeros(img.shape)
     zernike_surface[mm] = np.dot(mat, coef)
-    surf = np.ma.masked_array(zernike_surface, mask=img.mask)
-    return surf
+    return np.ma.masked_array(zernike_surface, mask=img.mask)
 
 def _surf_fit(xx, yy, zz, zlist, ordering='noll'):
+    """
+    Fit surface using Zernike polynomials.
+
+    Parameters
+    ----------
+    xx, yy : numpy arrays
+        Coordinates.
+    zz : numpy array
+        Surface data.
+    zlist : numpy array
+        List of Zernike modes.
+    ordering : str, optional
+        Ordering of Zernike modes. Default is 'noll'.
+
+    Returns
+    -------
+    coeff : numpy array
+        Zernike coefficients.
+    """
     A = _getZernike(xx, yy, zlist, ordering)
     B = np.transpose(zz.copy())
-    coeff = (np.linalg.lstsq(A, B, rcond=-1))[0]
-    return coeff
+    return np.linalg.lstsq(A, B, rcond=None)[0]
 
-### Init functions
-def _getZernike(xx,yy,zlist,ordering='noll'):
-    if min(zlist) ==0:
-        #print("Zernike index must be greater or equal to 1")
-        raise OSError("Zernike index must be greater or equal to 1")
+def _getZernike(xx, yy, zlist, ordering='noll'):
+    """
+    Get Zernike polynomials.
+
+    Parameters
+    ----------
+    xx, yy : numpy arrays
+        Coordinates.
+    zlist : numpy array
+        List of Zernike modes.
+    ordering : str, optional
+        Ordering of Zernike modes. Default is 'noll'.
+
+    Returns
+    -------
+    zkm : numpy array
+        Zernike polynomials.
+    """
+    if min(zlist) == 0:
+        raise ValueError("Zernike index must be greater or equal to 1")
+    
     rho = np.sqrt(yy**2 + xx**2)
     phi = np.arctan2(yy, xx)
-
-    #rho /= scale_factor
     zkm = []
-    norm = []
-    #for k, j in enumerate([0, 1, 2, 4]):
-    for j in zlist:
 
-        if ordering=='noll':
+    for j in zlist:
+        if ordering == 'noll':
             m, n = _l2mn_noll(j)
             cnorm = np.sqrt(n+1) if m == 0 else np.sqrt(2.0*(n+1))
-        elif ordering=='ansi': #da rivedere ordine e normalizzazione
+        elif ordering == 'ansi':
             m, n = _l2mn_ansi(j)
             cnorm = 1
-        zkm.append(cnorm*_zernike(m, n, rho, phi))
+        zkm.append(cnorm * _zernike(m, n, rho, phi))
+    
     return np.transpose(np.array(zkm))
 
 def _zernike_rad(m, n, rho):
     """
-    Calculate the radial component of Zernike polynomial (m, n)
-    given a grid of radial coordinates rho.
+    Calculate the radial component of Zernike polynomial (m, n).
 
-    >>> zernike_rad(3, 3, 0.333)
-    0.036926037000000009
-    >>> zernike_rad(1, 3, 0.333)
-    -0.55522188900000002
-    >>> zernike_rad(3, 5, 0.12345)
-    -0.007382104685237683
+    Parameters
+    ----------
+    m, n : int
+        Zernike polynomial indices.
+    rho : numpy array
+        Radial coordinates.
+
+    Returns
+    -------
+    rad : numpy array
+        Radial component of Zernike polynomial.
     """
-    if (n < 0 or m < 0 or abs(m) > n):
-        raise ValueError
-    if ((n-m) % 2):
-        return rho*0.0
-    pre_fac = lambda k: (-1.0)**k * fac(n-k) / ( fac(k) * fac( int((n+m)/2.0 - k) ) * fac( int((n-m)/2.0 - k) ) )
-    return sum(pre_fac(k) * rho**(n-2.0*k) for k in range((n-m)//2+1))
+    if n < 0 or m < 0 or abs(m) > n:
+        raise ValueError("Invalid Zernike polynomial indices")
+    if (n - m) % 2:
+        return rho * 0.0
+    
+    pre_fac = lambda k: (-1.0)**k * fac(n-k) / (fac(k) * fac((n+m)//2 - k) * fac((n-m)//2 - k))
+    return sum(pre_fac(k) * rho**(n-2*k) for k in range((n-m)//2 + 1))
 
 def _zernike(m, n, rho, phi):
     """
-    Calculate Zernike polynomial (m, n) given a grid of radial
-    coordinates rho and azimuthal coordinates phi.
+    Calculate Zernike polynomial (m, n).
 
-    >>> zernike(3,5, 0.12345, 1.0)
-    0.0073082282475042991
-    >>> zernike(1, 3, 0.333, 5.0)
-    -0.15749545445076085
+    Parameters
+    ----------
+    m, n : int
+        Zernike polynomial indices.
+    rho, phi : numpy arrays
+        Radial and azimuthal coordinates.
+
+    Returns
+    -------
+    zernike : numpy array
+        Zernike polynomial.
     """
-    if (m > 0): return _zernike_rad(m, n, rho) * np.cos(m * phi)
-    if (m < 0): return _zernike_rad(-m, n, rho) * np.sin(-m * phi)
-    return _zernike_rad(0, n, rho)
+    rad = _zernike_rad(m, n, rho)
+    if m > 0:
+        return rad * np.cos(m * phi)
+    if m < 0:
+        return rad * np.sin(-m * phi)
+    return rad
 
 def _zernikel(j, rho, phi):
     """
-    Calculate Zernike polynomial with Null coordinate j given a grid of radial
-    coordinates rho and azimuthal coordinates phi.
+    Calculate Zernike polynomial with Null coordinate j.
 
-    >>> zernikel(0, 0.12345, 0.231)
-    1.0
-    >>> zernikel(1, 0.12345, 0.231)
-    0.028264010304937772
-    >>> zernikel(6, 0.12345, 0.231)
-    0.0012019069816780774
+    Parameters
+    ----------
+    j : int
+        Null coordinate.
+    rho, phi : numpy arrays
+        Radial and azimuthal coordinates.
+
+    Returns
+    -------
+    zernike : numpy array
+        Zernike polynomial.
     """
     n = 0
-    while (j > n):
+    while j > n:
         n += 1
         j -= n
 
-    m = -n+2*j
+    m = -n + 2 * j
     return _zernike(m, n, rho, phi)
 
 def _l2mn_ansi(j):
+    """
+    Convert ANSI index to Zernike polynomial indices.
+
+    Parameters
+    ----------
+    j : int
+        ANSI index.
+
+    Returns
+    -------
+    m, n : int
+        Zernike polynomial indices.
+    """
     n = 0
-    while (j > n):
+    while j > n:
         n += 1
         j -= n
-    m = -n+2*j
+    m = -n + 2 * j
     return m, n
 
 def _l2mn_noll(j):
     """
-    Find the [n,m] list giving the radial order n and azimuthal order
-    of the Zernike polynomial of Noll index j.
+    Convert Noll index to Zernike polynomial indices.
 
-    Parameters:
-        j (int): The Noll index for Zernike polynomials
+    Parameters
+    ----------
+    j : int
+        Noll index.
 
-    Returns:
-        list: n, m values
+    Returns
+    -------
+    m, n : int
+        Zernike polynomial indices.
     """
-    n = int((-1.+np.sqrt(8*(j-1)+1))/2.)
-    p = (j-(n*(n+1))/2.)
-    k = n%2
-    m = int((p+k)/2.)*2 - k
-    if m!=0:
-        if j%2==0:
-            s=1
-        else:
-            s=-1
-        m *= s
-    return [m, n]
+    n = int((-1. + np.sqrt(8 * (j - 1) + 1)) / 2.)
+    p = j - (n * (n + 1)) // 2
+    k = n % 2
+    m = int((p + k) / 2.) * 2 - k
+    if m != 0:
+        m *= 1 if j % 2 == 0 else -1
+    return m, n

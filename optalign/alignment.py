@@ -373,14 +373,16 @@ class Alignment():
 
 class _Command:
     """
-    The _Command class represents a command with a vector and a reset flag. It
-    provides methods for updating the command, checking if it is null, and
-    combining it with other commands.
+    The _Command class represents a command with a vector and a flag indicating
+    whether the command should be ignored. It provides methods for initializing
+    the command, combining it with other commands, and checking if it is null.
+
     Attributes:
         vect (np.ndarray): The vector representing the command.
-        is_reset (bool): A flag indicating whether the command is a reset command.
+        to_ignore (bool): A flag indicating whether the command should be ignored.
+
     Methods:
-        __init__(vector=None, is_reset=False):
+        __init__(vector=None, to_ignore:bool=None):
             Initializes a new instance of the _Command class.
         __repr__():
             Returns a string representation of the _Command instance.
@@ -390,14 +392,8 @@ class _Command:
             Combines the current command with another _Command instance.
         is_null():
             Determines whether the command is null, i.e., a sequence of zeros.
-        to_ignore():
-            Returns True if the command is flagged to be ignored, False if it
-            is null but should not be ignored.
-        to_ignore(value: bool):
-            Setter for the 'to_ignore' property.
-        update(vector, is_reset=None):
-            Recycles the class to reuse the instance, updating its vector and
-            reset flag.
+        _process_command_logic(P, C, S):
+            Processes the command logic to determine the to_ignore flag.
     """
     def __init__(self, vector=None, to_ignore:bool=None):
         """

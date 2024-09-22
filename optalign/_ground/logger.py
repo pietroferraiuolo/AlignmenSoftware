@@ -2,6 +2,7 @@
 Author(s)
 ---------
     - Chiara Selmi : written in 2020
+    - Pietro Ferraiuolo : modified in 2024
 
 Description
 -----------
@@ -69,7 +70,8 @@ def log(message, level:str='INFO'):
     -----
     - The message will be logged using the logger configured by `set_up_logger`.
     - The message will be logged with the specified level.
-    - If the specified level is not recognized, the message will be logged at the 'DEBUG' level.
+    - If the specified level is not recognized, the message will be logged at the
+      'DEBUG' level.
     """
     level = level.upper()
     if level == 'DEBUG':

@@ -18,7 +18,8 @@ _save_path = _systemConfiguration.base_write_data_path
 
 def read_fits_data(fits_file_path):
     """
-    Reads data from a FITS file.
+    Reads data from a FITS file. If the data is an image, it returns a masked array
+    (if the FITS file contains a mask).
 
     Parameters
     ----------
@@ -36,12 +37,13 @@ def read_fits_data(fits_file_path):
             mask = hduList[1].data.astype(bool)
             obj = np.ma.masked_array(obj, mask=mask)
         elif len(hduList)>2:
-            print(f"{NotImplemented}: The FITS file {fits_file_path.split('/')[-1]} contains more than 2 HDUs. Skipping")
+            print(f"{NotImplemented}: The FITS file {os.path.basename(fits_file_path)} contains more than 2 HDUs. Skipping")
     return obj
 
 def save_fits_data(fits_name, data, header=None, overwrite:bool=False):
     """
-    Saves data to a FITS file.
+    Saves data to a FITS file. If the data is a masked array, it saves the mask 
+    in the fits file as well.
 
     Parameters
     ----------
@@ -51,8 +53,8 @@ def save_fits_data(fits_name, data, header=None, overwrite:bool=False):
         The data to save.
     header : str, optional
         The header information to save with the data. The default is None, which means 
-        an appropriate header for the data will be created (see astropy documentation
-        for more info).
+        an appropriate header for the data will be created (see 'astropy.io.fits' 
+        documentation for more info).
     overwrite : bool, optional
         Whether to overwrite the file if it already exists. The default is False.
     """
@@ -125,7 +127,7 @@ def _new_tn():
 
     Returns
     -------
-    str
-        The new time-stamped filename.
+    tn : str
+        The tracking number.
     """
     return dt.datetime.now().strftime("%Y%m%d_%H%M%S")
