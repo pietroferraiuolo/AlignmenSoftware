@@ -279,12 +279,13 @@ def _zernike(m, n, rho, phi):
     zernike : numpy array
         Zernike polynomial.
     """
-    rad = _zernike_rad(m, n, rho)
     if m > 0:
+        rad = _zernike_rad(m, n, rho)
         return rad * np.cos(m * phi)
     if m < 0:
+        rad = _zernike_rad(-m, n, rho)
         return rad * np.sin(-m * phi)
-    return rad
+    return _zernike_rad(0, n, rho)
 
 def _zernikel(j, rho, phi):
     """
@@ -345,7 +346,7 @@ def _l2mn_noll(j):
         Zernike polynomial indices.
     """
     n = int((-1.0 + np.sqrt(8 * (j - 1) + 1)) / 2.0)
-    p = j - (n * (n + 1)) // 2
+    p = j - (n * (n + 1)) / 2
     k = n % 2
     m = int((p + k) / 2.0) * 2 - k
     if m != 0:

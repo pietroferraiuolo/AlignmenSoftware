@@ -79,7 +79,7 @@ base_write_data_path : str
     Path to the data directory where the produced data is stored.
 
 log_path : str
-    Path to the log file.
+    Path to the log file, file name included.
 
 logging_level : int
     Logging level for the logger.
@@ -159,7 +159,8 @@ inside every list will be Parabola-ReferenceMirror-M4Exapode.
 """
 # Variables
 cmdDof = 6                # Total DoF per device
-        # or []
+        # or 
+        # cmdDof = []
         # cmdDof.append(6)
         # ...
 dof = []                  # Available Degrees of Freedom (DoF)

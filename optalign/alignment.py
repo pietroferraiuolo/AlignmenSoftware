@@ -41,9 +41,9 @@ class Alignment():
         self._moveFnc   = grd.get_callables(self.mdev, sc.devices_move_calls)
         self._readFnc   = grd.get_callables(self.mdev, sc.devices_read_calls)
         self._acquire   = grd.get_callables(self.ccd,  sc.ccd_acquisition)
-        self._devName   = grd.get_dev_names(sc.names, ndev=len(self.mdev))
+        self._devName   = grd.get_dev_names(sc.names, ndev=len(self._moveFnc))
         self._dof       = [np.array(dof) if not isinstance(dof, np.ndarray) else dof for dof in sc.dof]
-        self._dofTot    = sc.cmdDof if isinstance(sc.cmdDof, list) else [sc.cmdDof]*len(self.mdev)
+        self._dofTot    = sc.cmdDof if isinstance(sc.cmdDof, list) else [sc.cmdDof]*len(self._moveFnc)
         self._idx       = sc.slices
         self._zvec2fit  = np.arange(1,11)
         self._zvec2use  = sc.zernike_to_use
@@ -84,6 +84,7 @@ class Alignment():
         reconstruction matrix, calculates the reduced command, and either applies the
         correction command or returns it.
         """
+        grd.log(f"{self.correct_alignment.__qualname__}")
         image = self._acquire[0](n_frames)
         zernike_coeff = self._zern_routine(image)
         intMat = grd.read_fits_data(self._readPath+'/intMat.fits')
@@ -96,7 +97,9 @@ class Alignment():
         if apply:
             print("Applying correction command...")
             self._apply_command(f_cmd)
-            return "Alignment Corrected\n"+self.read_positions()
+            print("Alignment Corrected\n")
+            self.read_positions()
+            return
         return f_cmd
 
     def calibrate_alignment(self, cmdAmp, template:list=None, n_repetitions:int=1, save:bool=False):
@@ -128,6 +131,7 @@ class Alignment():
         4. Executes a Zernike routine on the image list to generate an internal matrix.
         5. Optionally saves the internal matrix to a FITS file.
         """
+        grd.log(f"{self.calibrate_alignment.__qualname__}")
         self._cmdAmp = cmdAmp
         template = template if template is not None else self._template
         imglist = self._images_production(template, n_repetitions)
@@ -135,9 +139,10 @@ class Alignment():
         self.intMat = intMat
         if save:
             grd.save_fits_data('intMat.fits', self.intMat, overwrite=True)
+            grd.log(f"{grd.save_fits_data.__qualname__}")
         return "Ready for Alignment..."
 
-    def read_positions(self):
+    def read_positions(self, show:bool=True):
         """
         Reads the current positions of the devices.
 
@@ -146,6 +151,7 @@ class Alignment():
         pos : list
             The list of current positions of the devices.
         """
+        grd.log(f"{self.read_positions.__qualname__}")
         logMsg = ''
         pos = []
         logMsg += "Current Positions\n"
@@ -155,7 +161,8 @@ class Alignment():
             logMsg += f"{dev_name}"+' '*(16-len(dev_name))+f" : {temp}\n"
         logMsg += '-'*30
         #logging.info(logMsg)
-        print(logMsg) #!!! debug only
+        if show:
+            print(logMsg) #!!! debug only
         return pos
 
     def reload_calibrated_parabola(self, filepath):
@@ -227,14 +234,17 @@ class Alignment():
         intMat : ndarray
             The interaction matrix created from the images.
         """
+        grd.log(f"{self._zern_routine.__qualname__}")
         coefflist = []
         if not isinstance(imglist, list):
             imglist = [imglist]
         for img in imglist:
             if self._auxMask is None:
                 coeff, _ = grd.zernikeFit(img, self._zvec2fit)
+                grd.log(f"{grd.zernikeFit.__qualname__}")
             else:
                 coeff, _ = grd.zernikeFitAuxmask(img, self._auxMask, self._zvec2fit)
+                grd.log(f"{grd.zernikeFitAuxmask.__qualname__}")
             coefflist.append(coeff[self._zvec2use])
         if len(coefflist) == 1:
             coefflist = np.array(coefflist[0])
@@ -250,6 +260,7 @@ class Alignment():
         recMat : ndarray
             Reconstruction matrix.
         """
+        grd.log(f"{self._create_rec_mat.__qualname__}")
         recMat = np.linalg.pinv(intMat)
         self.recMat = recMat
         return recMat
@@ -277,6 +288,7 @@ class Alignment():
                 try:
                     logMsg += f"Commanding {cmd} to {dev}\n"# debug
                     fnc(cmd.vect)
+                    grd.log(f"{fnc.__qualname__} : {cmd.vect}")
                 except Exception as e:
                     print(e)
                     #logging.warning(f"Someting went wrong with {dev}: {e}")
@@ -299,6 +311,7 @@ class Alignment():
         device_commands : list
             The list of commands to be applied to each device.
         """
+        grd.log(f"{self._extract_cmds_to_apply.__qualname__}")
         commands = []
         for d,dof in enumerate(self._dof):
             dev_cmd = np.zeros(self._dofTot[d])
@@ -306,7 +319,7 @@ class Alignment():
             for i,idx in enumerate(dev_idx):
                 dev_cmd[dof[i]] = idx
             commands.append(_Command(dev_cmd))
-        positions= self.read_positions()
+        positions = self.read_positions(show=False)
         device_commands = []
         for pos,cmd in zip(positions, commands):
             res_cmd = pos+cmd
@@ -329,6 +342,8 @@ class Alignment():
         imglist : list
             The list of acquired images.
         """
+        grd.log(f"{self._img_acquisition.__qualname__}")
+        grd.log(f"{self._acquire[0].__qualname__}")
         imglist = [self._acquire[0](15)]
         for t in template:
             logMsg = ''
@@ -338,6 +353,7 @@ class Alignment():
             #logging.info(logMsg)
             print(logMsg) #!!! debug only
             self._apply_command(cmd)
+            grd.log(f"{self._acquire[0].__qualname__}")
             imglist.append(self._acquire[0](15))
         return imglist
 
@@ -357,6 +373,7 @@ class Alignment():
         image : np.ndarray
             The reduced image.
         """
+        grd.log(f"{self._push_pull_redux.__qualname__}")
         template.insert(0,-1)
         image = np.zeros((imglist[0].shape[0], imglist[0].shape[1]))
         for x in range(1, len(imglist)):

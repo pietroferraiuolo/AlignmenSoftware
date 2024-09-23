@@ -1,0 +1,9 @@
+Template for the AlignmentLog.txt
+'Calib_tn & IniZern'  [calib_tn] par[2] par[3] par[4] rm[3] rm[4]
+'Result_tn & EndZern' [act_tn]   par[2] par[3] par[4] rm[3] rm[4]
+TNPar, DoF & Zern2Corr.: [par] [rm]
+
+************
+Calib. Trackn & IniZern:  20240521_120211 5.008e-07 -1.662e-06 -2.016e-08 -2.888e-08 -1.410e-08 
+Result Trackn & EndZern:  20240725_162809 -8.447e-08 5.958e-08 -8.697e-08 -5.443e-08 -4.578e-08 
+TNPar, DoF & Zern2Corr.:  20240521_161525  [3 4] [0 1] 

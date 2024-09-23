@@ -13,9 +13,9 @@ import os
 import numpy as np
 import datetime as dt
 from astropy.io import fits
-from optalign import _systemConfiguration
+from optalign import _systemConfiguration as sc
 
-_save_path = _systemConfiguration.base_write_data_path
+_save_path = sc.base_write_data_path
 
 
 def read_fits_data(fits_file_path):

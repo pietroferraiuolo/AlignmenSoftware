@@ -89,3 +89,37 @@ def log(message, level: str = "INFO"):
     else:
         logging.debug(message)
         logging.warning(f"Invalid log level '{level}'. Defaulting to 'DEBUG'.")
+
+class txtLogger:
+    """
+    A simple logger class that writes log messages to a text file.
+
+    Attributes:
+        file_path (str): The path to the log file, name included.
+
+    Methods:
+        __init__(file_path):
+            Initializes the logger with the specified file path.
+        
+        log(message):
+            Writes a log message to the file.
+    """
+
+    def __init__(self, file_path):
+        """
+        Initializes the txtLogger with the specified file path.
+
+        Args:
+            file_path (str): The path to the log file.
+        """
+        self.file_path = file_path
+
+    def log(self, message):
+        """
+        Writes a log message to the file.
+
+        Args:
+            message (str): The log message to be written to the file.
+        """
+        with open(self.file_path, 'a') as f:
+            f.write(message + '\n')
