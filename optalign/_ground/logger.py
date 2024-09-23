@@ -8,10 +8,8 @@ Description
 -----------
 Sets up the logger for the application.
 """
-
 import logging
 import logging.handlers
-
 
 def set_up_logger(file_path, logging_level):
     """
