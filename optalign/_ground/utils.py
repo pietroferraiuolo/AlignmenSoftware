@@ -8,6 +8,7 @@ Description
 Utility module for the Optical Alignment software. This include file I/O and support functions for
 the Alignment class.
 """
+
 import os
 import numpy as np
 import datetime as dt
@@ -15,6 +16,7 @@ from astropy.io import fits
 from optalign import _systemConfiguration
 
 _save_path = _systemConfiguration.base_write_data_path
+
 
 def read_fits_data(fits_file_path):
     """
@@ -33,16 +35,19 @@ def read_fits_data(fits_file_path):
     """
     with fits.open(fits_file_path) as hduList:
         obj = hduList[0].data
-        if len(hduList)==2:
+        if len(hduList) == 2:
             mask = hduList[1].data.astype(bool)
             obj = np.ma.masked_array(obj, mask=mask)
-        elif len(hduList)>2:
-            print(f"{NotImplemented}: The FITS file {os.path.basename(fits_file_path)} contains more than 2 HDUs. Skipping")
+        elif len(hduList) > 2:
+            print(
+                f"{NotImplemented}: The FITS file {os.path.basename(fits_file_path)} contains more than 2 HDUs. Skipping"
+            )
     return obj
 
-def save_fits_data(fits_name, data, header=None, overwrite:bool=False):
+
+def save_fits_data(fits_name, data, header=None, overwrite: bool = False):
     """
-    Saves data to a FITS file. If the data is a masked array, it saves the mask 
+    Saves data to a FITS file. If the data is a masked array, it saves the mask
     in the fits file as well.
 
     Parameters
@@ -52,8 +57,8 @@ def save_fits_data(fits_name, data, header=None, overwrite:bool=False):
     data : ndarray or MaskedArray
         The data to save.
     header : str, optional
-        The header information to save with the data. The default is None, which means 
-        an appropriate header for the data will be created (see 'astropy.io.fits' 
+        The header information to save with the data. The default is None, which means
+        an appropriate header for the data will be created (see 'astropy.io.fits'
         documentation for more info).
     overwrite : bool, optional
         Whether to overwrite the file if it already exists. The default is False.
@@ -62,16 +67,19 @@ def save_fits_data(fits_name, data, header=None, overwrite:bool=False):
     if not os.path.exists(os.path.dirname(filename)):
         os.makedirs(os.path.dirname(filename))
     if os.path.exists(filename) and not overwrite:
-        raise FileExistsError(f"The file {filename} already exists. Set overwrite=True to overwrite it.")
-    if hasattr(data, 'mask'):
+        raise FileExistsError(
+            f"The file {filename} already exists. Set overwrite=True to overwrite it."
+        )
+    if hasattr(data, "mask"):
         fits.writeto(filename, data.data, header, overwrite=overwrite)
         fits.append(filename, data.mask.astype(np.uint8), header, overwrite=overwrite)
     else:
         fits.writeto(filename, data, header, overwrite=overwrite)
 
+
 def get_callables(devices, callables):
     """
-    Returns a list of callables for the instanced object, taken from the 
+    Returns a list of callables for the instanced object, taken from the
     configuration.py file.
 
     Parameters
@@ -91,12 +99,13 @@ def get_callables(devices, callables):
     functions = []
     for dev in devices:
         for dev_call in callables:
-            obj, *methods = dev_call.split('.')
+            obj, *methods = dev_call.split(".")
             call = getattr(dev, obj)
             for method in methods:
                 call = getattr(call, method)
             functions.append(call)
     return functions
+
 
 def get_dev_names(names, ndev):
     """
@@ -120,6 +129,7 @@ def get_dev_names(names, ndev):
         for x in range(ndev):
             dev_names.append(f"Device {x}")
     return dev_names
+
 
 def _new_tn():
     """

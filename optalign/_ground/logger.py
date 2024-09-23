@@ -8,8 +8,10 @@ Description
 -----------
 Sets up the logger for the application.
 """
+
 import logging
 import logging.handlers
+
 
 def set_up_logger(file_path, logging_level):
     """
@@ -39,12 +41,11 @@ def set_up_logger(file_path, logging_level):
     --------
     >>> set_up_logger('/path/to/logfile.log', logging.DEBUG)
     """
-    FORMAT = '%(asctime)s %(levelname)s %(name)s %(message)s'
+    FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
     formato = logging.Formatter(fmt=FORMAT)
-    handler = logging.handlers.RotatingFileHandler(file_path,
-                                                   encoding='utf8',
-                                                   maxBytes=10000000,
-                                                   backupCount=3)
+    handler = logging.handlers.RotatingFileHandler(
+        file_path, encoding="utf8", maxBytes=10000000, backupCount=3
+    )
     root_logger = logging.getLogger()
     root_logger.setLevel(logging_level)
     handler.setFormatter(formato)
@@ -52,7 +53,8 @@ def set_up_logger(file_path, logging_level):
     root_logger.addHandler(handler)
     handler.doRollover()
 
-def log(message, level:str='INFO'):
+
+def log(message, level: str = "INFO"):
     """
     Log a message at the specified level.
 
@@ -74,15 +76,15 @@ def log(message, level:str='INFO'):
       'DEBUG' level.
     """
     level = level.upper()
-    if level == 'DEBUG':
+    if level == "DEBUG":
         logging.debug(message)
-    elif level == 'INFO':
+    elif level == "INFO":
         logging.info(message)
-    elif level == 'WARNING':
+    elif level == "WARNING":
         logging.warning(message)
-    elif level == 'ERROR':
+    elif level == "ERROR":
         logging.error(message)
-    elif level == 'CRITICAL':
+    elif level == "CRITICAL":
         logging.critical(message)
     else:
         logging.debug(message)
